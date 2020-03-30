@@ -1,0 +1,243 @@
+---
+title: "KEGG GSEA"
+author: "Ronald Cutler"
+date: "January 12, 2018"
+output: pdf_document
+---
+
+# KEGG Gene Set Enrichment Analysis
+
+## load required packages
+```{r}
+library(clusterProfiler)
+library(pathview)
+```
+
+Making sure that Xenopus laeivs is in the KEGG database. The latest database from KEGG is used by setting "use_internal_data" to FALSE.
+```{r}
+search_kegg_organism('xla', by='kegg_code')
+```
+
+## Load Gene-KEGG ID csv
+Here we are loading the csv that we made with the gene list and corresponding KEGG IDs.
+```{r, tidy = T}
+# read in csv
+geneList <- read.csv("/Volumes/CaChannel/RNA_SEQ/Analysis/Notch/161219_Hisat2/Taejoon_JGlv9/Differential_Expression/Analysis_Diagnostics_Workspace/uncollapsed/KEGG_Enrichment/18/GFP_ICD/GFP_ICD_stage18_DESeq2_KEGG_IDs.csv")
+
+# length
+ogLen <- length(geneList$Gene)
+
+# take a look
+head(geneList)
+```
+
+## Load Gene fold change and padj
+Now we load the fold change and adjusted p-values associated with each gene and combine the data frames. We use an absolute fold change and original fold change as we will rank the gene using absolute fold change and will use the original fold change for visualization.
+```{r}
+# Load fc
+inFile <- read.csv("/Volumes/CaChannel/RNA_SEQ/Analysis/Notch/161219_Hisat2/Taejoon_JGlv9/Differential_Expression/Analysis_Diagnostics_Workspace/uncollapsed/no_correction_filter_counts/stage_of_interest/18/GFP_ICD_stage18_DESeq2.csv")
+
+# load padj
+padj <- inFile$padj
+
+# load fc
+fc <- inFile$log2FoldChange
+
+# load abs fc
+absfc <- abs(inFile$log2FoldChange)
+
+# combine columns
+geneList <- cbind(geneList, fc, absfc, padj)
+
+# take a look
+head(geneList)
+```
+
+## Clear blanks, remove duplicates, remove NA padj
+Blanks are where KEGG IDs could not be found for certain genes, duplicate KEGG IDs annotated to different genes need to be removed as over-representation only cares about one, and NA padj values need to be removed as we use padj to threshold the gene sets.
+```{r}
+# get number of blanks entries and clean them
+blank <- sum(is.na(geneList$KEGG_ID))
+geneList <- subset(geneList, !is.na(geneList$KEGG_ID))
+
+# get number of duplicate rows and remove them
+dup <- sum(duplicated(geneList$KEGG_ID))
+geneList <- geneList[!duplicated(geneList$KEGG_ID),]
+
+# remove the NA padj 
+geneList <- subset(geneList, !is.na(geneList$padj))
+
+# get remaining length
+len <- length(geneList$Gene)
+
+# report
+rep <- c(ogLen, len, blank, dup)
+names(rep) <- c("Original Length", "New Length", "Blanks", "Duplicates")
+rep
+```
+
+## Subset the geneList by padj < 0.05
+We choose a meaningful padj value to subset the list. We will use sort this subset by descending order to use in the GSEA test.
+```{r}
+# get only padj < 0.05
+geneList0.05 <- subset(geneList, padj < 0.05)
+
+# get remaining length
+len <- length(geneList0.05$Gene)
+
+# report
+rep <- c(ogLen, len, blank, dup)
+names(rep) <- c("Original Length", "New Length", "Blanks", "Duplicates")
+rep
+
+# sort by fc descending
+geneList0.05 <- geneList0.05[order(-geneList0.05$absfc),]
+```
+
+## GSEA Test padj < 0.05
+Here we create a new vector where the KEGG IDs are the names and absolute fold changes are values. We then input this into the KEGG GSEA function, setting the organism to Xenopus laevis, and other parameters to default. This list must be sorted in descending order, otherwise the function will complain. Note that adjusting the 'minGSSize' might be necessary in order to pick up pathways that might have a small amount of genes. This number usually needs to be lower the smaller the gene set. 
+```{r}
+# create order ranked geneList with foldchange
+fcList <- geneList0.05$absfc
+names(fcList) <- geneList0.05$KEGG_ID
+
+# GSEA Test
+kk0.05 <- gseKEGG(geneList = fcList, organism = "xla", verbose = TRUE, by = 'fgsea', minGSSize = 2)
+
+# take a look
+head(kk0.05)
+```
+
+## Subset the geneList by padj < 0.1
+We choose a meaningful padj value to subset the list. We will use sort this subset by descending order to use in the GSEA test.
+```{r}
+# get only padj < 0.1
+geneList0.1 <- subset(geneList, padj < 0.1)
+
+# get remaining length
+len <- length(geneList0.1$Gene)
+
+# report
+rep <- c(ogLen, len, blank, dup)
+names(rep) <- c("Original Length", "New Length", "Blanks", "Duplicates")
+rep
+
+# sort by abs fc descending
+geneList0.1 <- geneList0.1[order(-geneList0.1$absfc),]
+```
+
+## GSEA Test padj < 0.1
+Here we create a new vector where the KEGG IDs are the names and absolute fold changes are values. We then input this into the KEGG GSEA function, setting the organism to Xenopus laevis, and other parameters to default. This list must be sorted in descending order, otherwise the function will complain. Note that adjusting the 'minGSSize' might be necessary in order to pick up pathways that might have a small amount of genes. This number usually needs to be lower the smaller the gene set. 
+```{r}
+# create order ranked geneList with foldchange
+fcList <- geneList0.1$absfc
+names(fcList) <- geneList0.1$KEGG_ID
+
+# GSEA Test
+kk0.1 <- gseKEGG(geneList = fcList, organism = "xla", verbose = TRUE, by = 'fgsea', minGSSize = 2)
+
+# take a look
+head(kk0.1)
+```
+
+# Subset the geneList by padj < 0.5
+We choose a meaningful padj value to subset the list. We will use sort this subset by descending order to use in the GSEA test.
+```{r}
+# get only padj < 0.5
+geneList0.5 <- subset(geneList, padj < 0.5)
+
+# get remaining length
+len <- length(geneList0.5$Gene)
+
+# report
+rep <- c(ogLen, len, blank, dup)
+names(rep) <- c("Original Length", "New Length", "Blanks", "Duplicates")
+rep
+
+# sort by fc descending
+geneList0.5 <- geneList0.5[order(-geneList0.5$absfc),]
+```
+
+## GSEA Test padj < 0.5
+Here we create a new vector where the KEGG IDs are the names and absolute fold changes are values. We then input this into the KEGG GSEA function, setting the organism to Xenopus laevis, and other parameters to default. This list must be sorted in descending order, otherwise the function will complain. Note that adjusting the 'minGSSize' might be necessary in order to pick up pathways that might have a small amount of genes. This number usually needs to be lower the smaller the gene set. 
+```{r}
+# create order ranked geneList with foldchange
+fcList <- geneList0.5$absfc
+names(fcList) <- geneList0.5$KEGG_ID
+
+# GSEA Test
+kk0.5 <- gseKEGG(geneList = fcList, organism = "xla", verbose = TRUE, by = 'fgsea', minGSSize = 7)
+
+# take a look
+head(kk0.5)
+```
+
+# Visualization of over-representation test using results from GSEA Test padj < 0.5
+
+## gseaplot
+This plot shows the enrichment score as it moved down the list and tested genes for enrichment in certain pathways. This is helpful to visualize where the genes of a certain pathway were ranked in the list.
+```{r}
+gseaplot(kk0.5, geneSetID = "xla04330")
+```
+
+## dotplot
+```{r}
+dotplot(kk0.5)
+```
+
+## enrichment map
+```{r}
+enrichMap(kk0.5)
+```
+
+## cnet plot 
+Here we can visualize fold changes and the relationship of genes to functional categories. This is especially useful if genes are enriched in multiple pathways. We have to recreate the list using original log2foldchange instead of abs that we used for ranking
+
+### Substitute in original log2foldchange and create list with gene symbol
+We substitute the KEGG Ids for gene symbols
+```{r}
+# create list with og foldchange and gene symbol
+fcList <- geneList0.5$fc
+
+# map gene symbol to KEGG ID and create list
+match <- as.character(geneList0.5$Gene)
+newmatch <- strsplit(match, "\\|")
+names(fcList) <- unlist(lapply(newmatch, `[[`, 1))
+```
+
+### map KEGG IDs from kk object to gene symbols
+```{r}
+# map gene symbols to KEGG_ID
+geneID <- strsplit(kk0.5@result$core_enrichment, "/")
+geneID <-as.integer(unlist(geneID))
+
+# get rows that match in same order 
+match <- geneList0.5[geneList0.5$KEGG_ID %in% geneID,]
+
+# create new character vector using symbols
+match <- as.character(match$Gene)
+newmatch <- strsplit(match, "\\|")
+
+symbol <- unlist(lapply(newmatch, `[[`, 1))
+kk0.5@result$core_enrichment <- paste(symbol, collapse = "/") 
+```
+
+### plot cne
+Setting fixed to FALSE will allow you to manually rearrange the graph.
+```{r}
+cnetplot(kk0.5, categorySize = "pvalue", foldChange = fcList, fixed = T)
+```
+
+## Pathway view enrichment map
+This is the official KEGG map for the enriched pathway where the fold changes are of the genes in the pathway are also included.This outputs to the specified working directory.
+```{r}
+# set wd
+setwd("/Volumes/CaChannel/RNA_SEQ/Analysis/Notch/161219_Hisat2/Taejoon_JGlv9/Differential_Expression/Analysis_Diagnostics_Workspace/uncollapsed/KEGG_Enrichment/18/GFP_ICD")
+# put KEGG IDs in fc list instead of symbol
+names(fcList) <- geneList0.5$KEGG_ID
+
+xla04330 <- pathview(gene.data  = fcList,
+                     pathway.id = "xla04330",
+                     species    = "xla",
+                     limit      = list(gene=max(abs(fcList)), cpd=1))
+```

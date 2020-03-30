@@ -1,0 +1,119 @@
+---
+title: "Untitled"
+author: "Ronald Cutler"
+date: "May 25, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Example of plotting homeolog expression profiles using data from Session et al. Here we are plotting ttyh1 homeolog L and S over developmental time where there are two biological replicates.
+```{r}
+library(ggplot2)
+library(reshape2)
+df <- read.csv("/Users/margaretsaha/Downloads/Data/ttyh1_expression.csv", header = T)
+
+S <- as.vector(df[1,c(3:24)])
+colnames(S) <- NULL
+L <- as.vector(df[2,c(3:24)])
+colnames(L) <- NULL
+
+df1 <- melt(data.frame(S =S, L = L))
+df1$variable <- rep(c("S", "L"), each = 22)
+levels(df1$variable) <- c("S", "L")
+
+# set stage labels
+df1$Stage <- factor(rep(rep(c("egg", "08", "09", "10", "12", "15", "20", "25", "30", "35", "40"), each = 2), times = 2), levels =c("egg", "08", "09", "10", "12", "15", "20", "25", "30", "35", "40"))
+
+# set rep number
+df1$rep <- factor(rep(rep(c("Taira", "Uneo"), times = 11), times = 2), levels = c("Taira", "Uneo"))
+
+# line plot
+gp <- ggplot(df1, aes(x = Stage, y = value, group = interaction(variable, rep))) +
+  geom_line(aes(color=variable, linetype = rep)) +
+  geom_point(aes(color=variable, shape = rep)) +
+  theme_classic() +
+  scale_color_hue(l = 50) +
+  ylab("Transcripts per Million") +
+  labs(color="Homeolog", linetype="Biological replicate") +
+  theme(axis.text = element_text(size = 15),
+        axis.title.y = element_text(size = 15, face = "bold"),
+        axis.title.x = element_text(size = 15, face = "bold"))
+```
+
+Plotting sox1.L - need to fix in order to use geom smooth to plot std
+```{r}
+df <- read.csv("/Users/margaretsaha/Downloads/Data/sox1_expression.csv", header = T)
+
+L <- as.vector(df[1,c(3:16)])
+colnames(L) <- NULL
+S <- as.vector(df[2,c(3:16)])
+colnames(S) <- NULL
+znf <- as.vector(df[3,c(3:16)])
+colnames(znf) <- NULL
+
+df1 <- melt(data.frame(S =S, L = L, znf = znf))
+df1$variable <- rep(c("ttyh1.S", "ttyh1.L", "sox1.L"), each = 14)
+levels(df1$variable) <- c("ttyh1.S", "ttyh1.L", "sox1.L")
+
+# set stage labels
+df1$Stage <- factor(c("oo12", "oo34", "oo56", "egg", "08", "09", "10", "12", "15", "20", "25", "30", "35", "40"), levels =c("oo12", "oo34", "oo56","egg", "08", "09", "10", "12", "15", "20", "25", "30", "35", "40"))
+
+# line plot
+gp <- ggplot(df1, aes(x = Stage, y = value, group = variable)) +
+  geom_smooth(aes(color=variable),span = 0.5) +
+  geom_point(aes(color=variable)) +
+  theme_classic() +
+  scale_color_hue(l = 50) +
+  ylab("Transcripts per Million") +
+  #scale_y_continuous(t, breaks = c(0,1,2,3,4,5,10,25,50,100,150,200)) +
+  labs(color="Homeolog", linetype="Biological replicate") +
+  theme(axis.text = element_text(size = 15),
+        axis.title.y = element_text(size = 15, face = "bold"),
+        axis.title.x = element_text(size = 15, face = "bold"))
+
+# correlation of ttyh1.S nad znf143.S
+cor.test(log(as.numeric(znf)),log(as.numeric(S)))
+```
+
+Plotting znf1143.S and ttyh1 homeolgo expression
+```{r}
+library(ggplot2)
+library(reshape2)
+#library(ggalt)
+df <- read.csv("/Users/margaretsaha/Downloads/Data/znf143_expression.csv", header = T)
+
+L <- as.vector(df[1,c(3:16)])
+colnames(L) <- NULL
+S <- as.vector(df[2,c(3:16)])
+colnames(S) <- NULL
+znf <- as.vector(df[3,c(3:16)])
+colnames(znf) <- NULL
+
+df1 <- melt(data.frame(S =S, L = L, znf = znf))
+df1$variable <- rep(c("ttyh1.S", "ttyh1.L", "znf143.S"), each = 14)
+levels(df1$variable) <- c("ttyh1.S", "ttyh1.L", "znf143.S")
+
+# set stage labels
+df1$Stage <- factor(c("oo12", "oo34", "oo56", "egg", "08", "09", "10", "12", "15", "20", "25", "30", "35", "40"), levels =c("oo12", "oo34", "oo56","egg", "08", "09", "10", "12", "15", "20", "25", "30", "35", "40"))
+
+# line plot
+gp <- ggplot(df1, aes(x = Stage, y = value, group = variable)) +
+  geom_smooth(aes(color=variable),span = 0.5) +
+  geom_point(aes(color=variable)) +
+  theme_classic() +
+  scale_color_hue(l = 50) +
+  ylab("Transcripts per Million (log2 + 1)") +
+  scale_y_continuous(trans = "log1p", breaks = c(0,1,2,3,4,5,10,25,50,100,150,200)) +
+  labs(color="Homeolog", linetype="Biological replicate") +
+  theme(axis.text = element_text(size = 15),
+        axis.title.y = element_text(size = 15, face = "bold"),
+        axis.title.x = element_text(size = 15, face = "bold"))
+
+# correlation of ttyh1.S nad znf143.S
+cor.test(log(as.numeric(znf)),log(as.numeric(S)))
+```
+
+

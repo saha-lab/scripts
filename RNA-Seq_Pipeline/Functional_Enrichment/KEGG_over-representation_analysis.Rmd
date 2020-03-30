@@ -1,0 +1,256 @@
+---
+title: "KEGG Over-representation Analysis Tutorial"
+author: "Ronald Cutler"
+date: "January 8, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# KEGG Over-representation analysis
+The purpose of this is to provide an example of running a over-representation test using a gene list to find over-represented pathways. It is assumed that there The objective of this is to test For this we will use the Notch GFP vs ICD stage 18 comparison. Here GFP is the control condition and ICD is the experimental. Online reference: https://bioconductor.org/packages/release/bioc/vignettes/clusterProfiler/inst/doc/clusterProfiler.html
+
+## Load required libraries
+These libraries might need to be installed if not done already.
+```{r}
+library(clusterProfiler)
+library(pathview)
+```
+
+## Load Gene-KEGG ID csv
+Here we are loading the csv that we made with the gene list and corresponding KEGG IDs. This list should contain all of the genes expressed in the experiment output by DESEq2. 
+```{r}
+# read in csv
+geneList <- read.csv("/Volumes/CaChannel/RNA_SEQ/Analysis/Notch/161219_Hisat2/Taejoon_JGlv9/Differential_Expression/Analysis_Diagnostics_Workspace/uncollapsed/KEGG_Enrichment/18/GFP_ICD/GFP_ICD_stage18_DESeq2_KEGG_IDs.csv")
+
+# length
+ogLen <- length(geneList$Gene)
+
+# take a look
+head(geneList)
+```
+
+## Load Gene padj
+Now we load the padj associated with each gene and combine the data frames. We will use this to subset the list at specific thresholds. 
+```{r}
+# Load DESeq2 output
+inFile <- read.csv("/Volumes/CaChannel/RNA_SEQ/Analysis/Notch/161219_Hisat2/Taejoon_JGlv9/Differential_Expression/Analysis_Diagnostics_Workspace/uncollapsed/no_correction_filter_counts/stage_of_interest/18/GFP_ICD_stage18_DESeq2.csv")
+
+# load padj
+padj <- inFile$padj
+
+# combine columns
+geneList <- cbind(geneList, padj)
+
+# take a look
+head(geneList)
+```
+
+## Clear blanks, remove duplicates, and remove 'NA' padj value for gene set 
+Blanks are where KEGG IDs could not be found for certain genes, duplicate KEGG IDs annotated to different genes need to be removed as over-representation only cares about one, and NA padj values need to be removed as we use padj to threshold the gene sets.
+```{r}
+# get number of blanks entries and clean them
+blank <- sum(is.na(geneList$KEGG_ID))
+geneList <- subset(geneList, !is.na(geneList$KEGG_ID))
+
+# get number of duplicate rows and remove them
+dup <- sum(duplicated(geneList$KEGG_ID))
+geneList <- geneList[!duplicated(geneList$KEGG_ID),]
+
+# remove the NA padj 
+geneList <- subset(geneList, !is.na(geneList$padj))
+
+# get remaining length
+len <- length(geneList$Gene)
+
+# report
+rep <- c(ogLen, len, blank, dup)
+names(rep) <- c("Original Length", "New Length", "Blanks", "Duplicates")
+rep
+```
+
+## Set the background
+We need to use a list of expressed genes in the experiment as the background set. This will be a copy of the current list with all the expressed KEGG IDs. 
+```{r}
+background <- as.character(geneList$KEGG_ID)
+```
+
+## Subset the geneList by padj < 0.05
+We choose a meaningful padj value to subset the list. We will use this subset to test for over-representation against the background set. 
+```{r}
+# get KEGG_IDs only padj < 0.05
+geneList0.05 <- subset(geneList, padj < 0.05)
+geneList0.05 <- as.character(geneList0.05$KEGG_ID)
+
+# get remaining length
+len <- length(geneList0.05)
+
+# report
+rep <- c(ogLen, len, blank, dup)
+names(rep) <- c("Original Length", "New Length", "Blanks", "Duplicates")
+rep
+```
+
+## Over-representation test padj < 0.05
+We run the test using a function from clusterProfiler. We include the geneList of KEGG IDs, the organism Xenopus laevis, the p-value cutoff to threshold the enrichment, the universe of background KEGG IDs, and the keytype used as gene list input.
+The results of this say that 10 of the genes were enriched in the notch signaling pathway which is highly significant.
+```{r}
+kk0.05 <- enrichKEGG(gene = geneList0.05, organism = 'xla', pvalueCutoff = 0.05, universe = background, keyType = "kegg")
+
+# how many genes in list, should match with geneList0.05 length
+length(kk0.05@gene)
+
+# take a look
+head(kk0.05)
+```
+
+## KEGG Module over-representation test
+Test for over-representation in manually defined function units. These modules are high-resolution subpathways representing functional units within a pathway map. We did not get any hits returned here.
+```{r}
+kk_module0.05 <- enrichMKEGG(gene = geneList0.05, organism = 'xla', pvalueCutoff = 0.05, universe = background, keyType = "kegg")
+
+# take a look
+head(kk_module0.05)
+```
+
+## Subset the geneList by padj < 0.1
+We choose a meaningful padj value to subset the list. We will use this subset to test for over-representation against the background set. 
+```{r}
+# get KEGG_IDs only padj < 0.1
+geneList0.1 <- subset(geneList, padj < 0.1)
+geneList0.1 <- geneList0.1$KEGG_ID
+
+# get remaining length
+len <- length(geneList0.1)
+
+# report
+rep <- c(ogLen, len, blank, dup)
+names(rep) <- c("Original Length", "New Length", "Blanks", "Duplicates")
+rep
+```
+
+## Over-representation test padj < 0.1
+We run the test using a function from clusterProfiler. We include the geneList of KEGG IDs, the organism Xenopus laevis, the p-value cutoff to threshold the enrichment, the universe of background KEGG IDs, and the keytype used as gene list input.
+The results of this say that 10 of the genes were enriched in the notch signaling pathway, that are most likely the same 10 from the above over-representation analysis. Not here that the adjusted p-values are much lower due to the larger gene set. 
+```{r}
+kk0.1 <- enrichKEGG(gene = geneList0.1, organism = 'xla', pvalueCutoff = 0.05, universe = background, keyType = "kegg")
+
+# how many genes in list, should match
+length(kk0.1@gene)
+
+# take a look
+head(kk0.1)
+```
+
+## KEGG Module over-representation test padj < 0.1
+Test for over-representation in manually defined function units. Sometimes these module allow for an easier interpretation. We did not get any hits returned here.
+```{r}
+kk_module0.1 <- enrichMKEGG(gene = geneList0.1, organism = 'xla', pvalueCutoff = 0.05, universe = background, keyType = "kegg")
+
+# take a look
+head(kk_module0.1)
+```
+
+# Visualization of over-representation test padj < 0.05
+Since the results were the same at padj 0.1 and padj 0.05, we choose to use the results from 0.05 as there is higher significance of the enrichment. 
+
+## barplot
+Here only 1 category was enrched, thus the barplot is a block.
+```{r}
+barplot(kk0.05, drop = TRUE, showCategory = 10)
+```
+
+## dotplot
+```{r}
+dotplot(kk0.05)
+```
+
+## enrichment map
+```{r}
+enrichMap(kk0.05)
+```
+
+## cnet plot
+Here we can visualize fold changes and the relationship of genes to functional categories. This is especially useful if genes are enriched in multiple pathways. We have to recreate the list using original log2foldchange instead of abs that we used for ranking
+```{r}
+# load KEGG IDs 
+geneList <- read.csv("/Volumes/CaChannel/RNA_SEQ/Analysis/Notch/161219_Hisat2/Taejoon_JGlv9/Differential_Expression/Analysis_Diagnostics_Workspace/uncollapsed/KEGG_Enrichment/18/GFP_ICD/GFP_ICD_stage18_DESeq2_KEGG_IDs.csv")
+
+# Load fc and padj
+inFile <- read.csv("/Volumes/CaChannel/RNA_SEQ/Analysis/Notch/161219_Hisat2/Taejoon_JGlv9/Differential_Expression/Analysis_Diagnostics_Workspace/uncollapsed/no_correction_filter_counts/stage_of_interest/18/GFP_ICD_stage18_DESeq2.csv")
+
+# load padj
+padj <- inFile$padj
+
+# load fc
+fc <- inFile$log2FoldChange
+
+# combine columns
+geneList <- cbind(geneList, fc, padj)
+```
+
+### Clear blanks, remove duplicates, remove NA padj, 
+```{r}
+# get number of blanks entries and clean them
+blank <- sum(!is.na(geneList$KEGG_ID))
+geneList <- subset(geneList, !is.na(geneList$KEGG_ID))
+
+# get number of duplicate rows and remove them
+dup <- sum(!duplicated(geneList$KEGG_ID))
+geneList <- geneList[!duplicated(geneList$KEGG_ID),]
+
+# remove the NA padj 
+geneList <- subset(geneList, !is.na(geneList$padj))
+```
+
+### Subset padj < 0.05, sort by abs log2foldchange and substitute in original log2foldchange
+```{r}
+# get only padj < 0.05
+geneList0.05 <- subset(geneList, padj < 0.05)
+
+# create list with foldchange and gene symbol
+fcList <- geneList0.05$fc
+# gene symbol only
+match <- as.character(geneList0.05$Gene)
+newmatch <- strsplit(match, "\\|")
+names(fcList) <- unlist(lapply(newmatch, `[[`, 1))
+```
+
+### map KEGG IDs from kk object to gene symbols
+```{r}
+# map gene symbols to KEGG_ID
+geneID <- strsplit(kk0.05@result$geneID, "/")
+geneID <-as.integer(unlist(geneID))
+
+# get rows that match in same order 
+match <- geneList0.05[geneList0.05$KEGG_ID %in% geneID,]
+
+# create new character vector using symbols
+match <- as.character(match$Gene)
+newmatch <- strsplit(match, "\\|")
+
+symbol <- unlist(lapply(newmatch, `[[`, 1))
+kk0.05@result$geneID <- paste(symbol, collapse = "/") 
+```
+
+### plot cne
+Setting fixed to FALSE will allow you to manually rearrange the graph.
+```{r}
+cnetplot(kk0.05, categorySize = "pvalue", foldChange = fcList, fixed = T)
+```
+
+## Pathway view enrichment map
+This is the official KEGG map for the enriched pathway where the fold changes are of the genes in the pathway are also included.This outputs to the specified working directory.
+```{r}
+# set wd
+setwd("/Volumes/CaChannel/RNA_SEQ/Analysis/Notch/161219_Hisat2/Taejoon_JGlv9/Differential_Expression/Analysis_Diagnostics_Workspace/uncollapsed/KEGG_Enrichment/18/GFP_ICD")
+# put KEGG IDs in fc list instead of symbol
+names(fcList) <- geneList0.05$KEGG_ID
+
+xla04330 <- pathview(gene.data  = fcList,
+                     pathway.id = "xla04330",
+                     species    = "xla",
+                     limit      = list(gene=max(abs(fcList)), cpd=1))
+```
