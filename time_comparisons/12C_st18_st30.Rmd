@@ -1,0 +1,184 @@
+---
+title: "12C Comparison Stage 18 vs 30"
+author: "LeAnn Lo"
+date: "February 12, 2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Loading Libraries
+```{r}
+suppressMessages(library(RUVSeq))
+suppressMessages(library("ggplot2"))
+suppressMessages(library(ggrepel))
+suppressMessages(library(factoextra))
+suppressMessages(library(FactoMineR))
+suppressMessages(library(genefilter))
+suppressMessages(library(DESeq2))
+suppressMessages(library(sva))
+suppressMessages(library(RColorBrewer))
+```
+
+
+##Loading Count Data
+We are using APR sib, Selfie sib, and APR Sib data from stage 18 and 30. Load in all the paths and data.
+```{r countData}
+#stage 18
+files_sib_rot_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_18/S18_Sib", recursive = TRUE, full.name=TRUE)
+files_sib_selfie_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_18/selfie_S18_Sib", recursive = TRUE, full.name=TRUE)
+files_selfie_11_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_18/selfie_11-18", recursive = TRUE, full.name=TRUE)
+files_selfie_12_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_18/selfie_12-18", recursive = TRUE, full.name=TRUE)
+files_apr_11R_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_18/S18_11R", recursive = TRUE, full.name=TRUE)
+files_apr_11C_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_18/S18_11C", recursive = TRUE, full.name=TRUE)
+files_apr_12R_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_18/S18_12R", recursive = TRUE, full.name=TRUE)
+files_apr_12C_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_18/S18_12C", recursive = TRUE, full.name=TRUE)
+
+#stage 30
+files_sib_rot_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_30/S30_Sib", recursive = TRUE, full.name=TRUE)
+files_sib_selfie_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_30/selfie_S30_Sib", recursive = TRUE, full.name=TRUE)
+files_selfie_11_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_30/selfie_11-30", recursive = TRUE, full.name=TRUE)
+files_selfie_12_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_30/selfie_12-30", recursive = TRUE, full.name=TRUE)
+files_apr_11R_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_30/S30_11R", recursive = TRUE, full.name=TRUE)
+files_apr_11C_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_30/S30_11C", recursive = TRUE, full.name=TRUE)
+files_apr_12R_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_30/S30_12R", recursive = TRUE, full.name=TRUE)
+files_apr_12C_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_30/S30_12C", recursive = TRUE, full.name=TRUE)
+
+#### STAGE 18 ####
+
+# sample name Sib rotations st 18
+sampNum_18sib = c("S18_Sib_1","S18_Sib_2","S18_Sib_3","S18_Sib_4","S18_Sib_5")
+
+# sample name Sib selfie st 18
+sampNum_18sibself = c("S18_SibSelfie_1", "S18_SibSelfie_2")
+
+# sample name Selfie 11selfie st 18
+sampNum_1811Selfie = c("S18_11Selfie_1","S18_11Selfie_2","S18_11Selfie_3","S18_11Selfie_4","S18_11Selfie_5")
+
+# sample name Selfie 12selfie st 18
+sampNum_1812Selfie = c("S18_12Selfie_1","S18_12Selfie_2","S18_12Selfie_3","S18_12Selfie_4","S18_12Selfie_5")
+
+# sample name APR 11R st 18
+sampNum_1811R = c("S18_11R_1","S18_11R_2","S18_11R_3","S18_11R_4","S18_11R_5")
+
+# sample name APR 11C st 18
+sampNum_1811C = c("S18_11C_1","S18_11C_2","S18_11C_3","S18_11C_4","S18_11C_5")
+
+# sample name APR 12R st 18
+sampNum_1812R = c("S18_12R_1","S18_12R_2","S18_12R_3","S18_12R_4","S18_12R_5")
+
+# sample name APR 12C st 18
+sampNum_1812C = c("S18_12C_1","S18_12C_2","S18_12C_3","S18_12C_4","S18_12C_5")
+
+#### STAGE 30 ####
+
+# sample name Sib rotations st 30
+sampNum_30sib = c("S30_Sib_1","S30_Sib_2","S30_Sib_3","S30_Sib_4","S30_Sib_5")
+
+# sample name Sib selfie st 30
+sampNum_30sibself = c("S30_SibSelfie_1", "S30_SibSelfie_2")
+
+# sample name Selfie 11selfie st 30
+sampNum_3011Selfie = c("S30_11sSlfie_1","S30_11Selfie_2","S30_11Selfie_3","S30_11Selfie_4","S30_11Selfie_5")
+
+# sample name Selfie 12selfie st 30
+sampNum_3012Selfie = c("S30_12Selfie_1","S30_12Selfie_2","S30_12Selfie_3","S30_12Selfie_4","S30_12Selfie_5")
+
+# sample name APR 11R st 30
+sampNum_3011R = c("S30_11R_1","S30_11R_2","S30_11R_3","S30_11R_4","S30_11R_5")
+
+# sample name APR 11C st 30
+sampNum_3011C = c("S30_11C_1","S30_11C_2","S30_11C_3","S30_11C_4","S30_11C_5")
+
+# sample name APR 12R st 30
+sampNum_3012R = c("S30_12R_1","S30_12R_2","S30_12R_3","S30_12R_4","S30_12R_5")
+
+# sample name APR 12C st 30
+sampNum_3012C = c("S30_12C_1","S30_12C_2","S30_12C_3","S30_12C_4","S30_12C_5")
+
+```
+
+
+# Set up comparisons time
+In this case, we are using all of the Sibs from APR and Selfie data, and from the two stages. 
+```{r}
+#choose the files
+files <- c(files_apr_12C_st18, files_apr_12C_st30)
+
+# combine sample names
+sampNum <- c(sampNum_1812C, sampNum_3012C)
+
+# setting batch
+time <- as.factor(rep(c("18","30"), c(5,5)))
+
+sTable = data.frame(sampleName = sampNum, fileName = files, time = time)
+```
+
+
+## DESeq TIME
+There is no batch correction necessary as all the data is from the APR batch. 
+```{r}
+design <- ~ time
+dds <- DESeqDataSetFromHTSeqCount(sampleTable = sTable, directory = "", design = design)
+dds <- dds[rowMeans(counts(dds)) >= 5,] 
+dds <- DESeq(dds, test = "LRT", reduced = ~1)
+```
+
+## PCA for DESeq
+
+```{r original plot}
+counts_deseq <- removeBatchEffect(log(counts(dds)+1), batch = sTable$batch, design = model.matrix(~time, sTable$time))
+project.pca <- prcomp(t(counts_deseq))
+summary(project.pca)
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+```
+
+Viewing PCA Plot for the distribution. Green is stage 18, orange is stage 30.
+```{r}
+colors <- brewer.pal(3, "Set2")
+
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="12C st18 vs st30 PCA Plot", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colors[time], pch=19)
+text(project.pca$x, labels=sampNum, cex= 0.7)
+```
+
+```{r getting available comparisons from DESeq}
+head(dds)
+#retrieve name of comparisons available
+resultsNames(dds)
+```
+
+Write output function
+```{r write output function}
+# write output
+writeOutput <- function(res, dds, name, time, dir, counts) {
+  resOrdered <- res[order(res$padj),]
+  resdata <- merge(as.data.frame(resOrdered), as.data.frame(counts), by="row.names", sort=FALSE) #includes normalized counts in output csv
+  names(resdata)[1] <- "gene" # set header of first column
+  outfile <- paste(time[1], time[length(time)], name, "DESeq2.csv", sep = "_")
+  outfile <- paste(dir, outfile, sep = "")
+  write.csv(as.data.frame(resdata), file = outfile, row.names = FALSE)
+}
+# setting output dir
+dir <- "/Volumes/cachannel-1/SCRIPTS/R/X.laevis_APRotations_RNA-Seq/time_comparisons/"
+```
+
+# DESeq comparison of batches
+There are about 100 DE genes before any correction (SVA)
+```{r}
+# get results of 18 vs 30
+res <- results(dds, alpha = 0.05, name = "time_30_vs_18")
+hist(res$pvalue, main = "St18 12C vs St30 12C", xlab = "p-values", col = "lavender")
+summary(res)
+#counts_deseq = (exp(counts_deseq) - 1)
+writeOutput(res, dds, "st18_st30", c("12C", "12C"), dir, counts_deseq)
+```
+
+
+
+
+
+

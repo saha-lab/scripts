@@ -1,0 +1,254 @@
+---
+title: "Sib Comparison Stage 18 vs 30"
+author: "LeAnn Lo"
+date: "February 10, 2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Loading Libraries
+```{r}
+suppressMessages(library(RUVSeq))
+suppressMessages(library("ggplot2"))
+suppressMessages(library(ggrepel))
+suppressMessages(library(factoextra))
+suppressMessages(library(FactoMineR))
+suppressMessages(library(genefilter))
+suppressMessages(library(DESeq2))
+suppressMessages(library(sva))
+```
+
+
+##Loading Count Data
+We are using APR sib, Selfie sib, and APR Sib data from stage 18 and 30. Load in all the paths and data.
+```{r countData}
+#stage 18
+files_sib_rot_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_18/S18_Sib", recursive = TRUE, full.name=TRUE)
+files_sib_selfie_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_18/selfie_S18_Sib", recursive = TRUE, full.name=TRUE)
+files_selfie_11_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_18/selfie_11-18", recursive = TRUE, full.name=TRUE)
+files_selfie_12_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_18/selfie_12-18", recursive = TRUE, full.name=TRUE)
+files_apr_11R_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_18/S18_11R", recursive = TRUE, full.name=TRUE)
+files_apr_11C_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_18/S18_11C", recursive = TRUE, full.name=TRUE)
+files_apr_12R_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_18/S18_12R", recursive = TRUE, full.name=TRUE)
+files_apr_12C_st18 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_18/S18_12C", recursive = TRUE, full.name=TRUE)
+
+#stage 30
+files_sib_rot_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_30/S30_Sib", recursive = TRUE, full.name=TRUE)
+files_sib_selfie_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_30/selfie_S30_Sib", recursive = TRUE, full.name=TRUE)
+files_selfie_11_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_30/selfie_11-30", recursive = TRUE, full.name=TRUE)
+files_selfie_12_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_30/selfie_12-30", recursive = TRUE, full.name=TRUE)
+files_apr_11R_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_30/S30_11R", recursive = TRUE, full.name=TRUE)
+files_apr_11C_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_30/S30_11C", recursive = TRUE, full.name=TRUE)
+files_apr_12R_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_30/S30_12R", recursive = TRUE, full.name=TRUE)
+files_apr_12C_st30 <- list.files("/Volumes/cachannel-1/RNA-SEQ/Analysis/X.laevis_APRotations_RNA-Seq/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_30/S30_12C", recursive = TRUE, full.name=TRUE)
+
+#### STAGE 18 ####
+
+# sample name Sib rotations st 18
+sampNum_18sib = c("S18_Sib_1","S18_Sib_2","S18_Sib_3","S18_Sib_4","S18_Sib_5")
+
+# sample name Sib selfie st 18
+sampNum_18sibself = c("S18_SibSelfie_1", "S18_SibSelfie_2")
+
+# sample name Selfie 11selfie st 18
+sampNum_1811Selfie = c("S18_11Selfie_1","S18_11Selfie_2","S18_11Selfie_3","S18_11Selfie_4","S18_11Selfie_5")
+
+# sample name Selfie 12selfie st 18
+sampNum_1812Selfie = c("S18_12Selfie_1","S18_12Selfie_2","S18_12Selfie_3","S18_12Selfie_4","S18_12Selfie_5")
+
+# sample name APR 11R st 18
+sampNum_1811R = c("S18_11R_1","S18_11R_2","S18_11R_3","S18_11R_4","S18_11R_5")
+
+# sample name APR 11C st 18
+sampNum_1811C = c("S18_11C_1","S18_11C_2","S18_11C_3","S18_11C_4","S18_11C_5")
+
+# sample name APR 12R st 18
+sampNum_1812R = c("S18_12R_1","S18_12R_2","S18_12R_3","S18_12R_4","S18_12R_5")
+
+# sample name APR 12C st 18
+sampNum_1812C = c("S18_12C_1","S18_12C_2","S18_12C_3","S18_12C_4","S18_12C_5")
+
+#### STAGE 30 ####
+
+# sample name Sib rotations st 30
+sampNum_30sib = c("S30_Sib_1","S30_Sib_2","S30_Sib_3","S30_Sib_4","S30_Sib_5")
+
+# sample name Sib selfie st 30
+sampNum_30sibself = c("S30_SibSelfie_1", "S30_SibSelfie_2")
+
+# sample name Selfie 11selfie st 30
+sampNum_3011Selfie = c("S30_11sSlfie_1","S30_11Selfie_2","S30_11Selfie_3","S30_11Selfie_4","S30_11Selfie_5")
+
+# sample name Selfie 12selfie st 30
+sampNum_3012Selfie = c("S30_12Selfie_1","S30_12Selfie_2","S30_12Selfie_3","S30_12Selfie_4","S30_12Selfie_5")
+
+# sample name APR 11R st 30
+sampNum_3011R = c("S30_11R_1","S30_11R_2","S30_11R_3","S30_11R_4","S30_11R_5")
+
+# sample name APR 11C st 30
+sampNum_3011C = c("S30_11C_1","S30_11C_2","S30_11C_3","S30_11C_4","S30_11C_5")
+
+# sample name APR 12R st 30
+sampNum_3012R = c("S30_12R_1","S30_12R_2","S30_12R_3","S30_12R_4","S30_12R_5")
+
+# sample name APR 12C st 30
+sampNum_3012C = c("S30_12C_1","S30_12C_2","S30_12C_3","S30_12C_4","S30_12C_5")
+
+```
+
+
+# Set up comparisons time
+In this case, we are using all of the Sibs from APR and Selfie data, and from the two stages. 
+```{r}
+#choose the files
+files <- c(files_sib_rot_st18, files_sib_selfie_st18, files_sib_rot_st30, files_sib_selfie_st30)
+
+# combine sample names
+sampNum <- c(sampNum_18sib, sampNum_18sibself, sampNum_30sib, sampNum_30sibself)
+
+# setting batch
+batch <- as.factor(rep(c("Sib", "Selfie","Sib","Selfie"), c(5,2,5,2)))
+time <- as.factor(rep(c("18","30"), c(7,7)))
+
+sTable = data.frame(sampleName = sampNum, fileName = files, batch = batch, time = time)
+```
+
+
+## DESeq BATCH + TIME
+Note: This will be the only comparison that uses a batch effect correction bc the sibs were separated. 
+```{r}
+design <- ~ batch + time
+dds <- DESeqDataSetFromHTSeqCount(sampleTable = sTable, directory = "", design = design)
+dds <- dds[rowMeans(counts(dds)) >= 5,] 
+dds <- DESeq(dds, test = "LRT",full = ~batch+time, reduced = ~batch)
+```
+
+## Original Plot
+
+```{r original plot}
+suppressMessages(library(limma))
+counts_deseq <- removeBatchEffect(log(counts(dds)+1), batch = sTable$batch, design = model.matrix(~time, sTable$time))
+project.pca <- prcomp(t(counts_deseq))
+summary(project.pca)
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+```
+
+Viewing PCA Plot for the distribution. Green is stage 18, orange is stage 30.
+```{r}
+library(RColorBrewer)
+colors <- brewer.pal(3, "Set2")
+
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="Original PCA Plot", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colors[time], pch=19)
+text(project.pca$x, labels=sampNum, cex= 0.7)
+```
+
+```{r getting available comparisons from DESeq}
+head(dds)
+#retrieve name of comparisons available
+resultsNames(dds)
+```
+
+Write output function
+```{r write output function}
+# write output
+writeOutput <- function(res, dds, name, cond, dir, counts) {
+  resOrdered <- res[order(res$padj),]
+  resdata <- merge(as.data.frame(resOrdered), as.data.frame(counts), by="row.names", sort=FALSE) #includes normalized counts in output csv
+  names(resdata)[1] <- "gene" # set header of first column
+  outfile <- paste(cond[1], cond[length(cond)], name, "DESeq2.csv", sep = "_")
+  outfile <- paste(dir, outfile, sep = "")
+  write.csv(as.data.frame(resdata), file = outfile, row.names = FALSE)
+}
+# setting output dir
+dir <- "/Users/margaretsaha/llo_poster/"
+```
+
+# DESeq comparison of batches
+There are about 100 DE genes before any correction (SVA)
+```{r}
+# get results of 18 vs 30
+res <- results(dds, alpha = 0.05, name = "time_30_vs_18")
+hist(res$pvalue, main = "St18 Sib vs St30 Sib", xlab = "p-values", col = "lavender")
+summary(res)
+counts_deseq = exp(counts_deseq)-1
+writeOutput(res, dds, "stage18_30_Sib", c("18", "30"), dir)
+```
+
+```{r SVA}
+# Loading all variables 
+library(sva)
+dat  <- counts(dds, normalized = TRUE)
+idx  <- rowMeans(dat) > 1
+dat  <- dat[idx, ]
+mod  <- model.matrix(~ batch+time, colData(dds))
+mod0 <- model.matrix(~ batch, colData(dds))
+svseq <- svaseq(dat, mod, mod0)
+```
+
+Adding surrogate variables to actual design and testing using DESeq, using 3 surrogate variables
+```{r}
+ddssva <- dds
+ddssva$SV1 <- svseq$sv[,1]
+ddssva$SV2 <- svseq$sv[,2]
+ddssva$SV3 <- svseq$sv[,3]
+ddssva$SV4 <- svseq$sv[,4]
+design(ddssva) <- ~ SV1 + SV2 + SV3 + SV4 + batch + time
+ddssva <- DESeq(ddssva, test = "LRT", full = ~SV1 + SV2 + SV3 + SV4+ batch+time, reduced = ~SV1 + SV2 + SV3 +batch)
+```
+
+```{r}
+head(dds)
+#get name of comparisons available to you
+resultsNames(ddssva)
+```
+
+## LIMMA
+
+```{r LIMMA}
+suppressMessages(library(limma))
+
+# get the sva covariates
+sv_covar <- svseq$sv
+
+counts_deseq_sva <- removeBatchEffect(log(counts(ddssva, normalized = TRUE)+1), covariates = sv_covar, design = model.matrix(~time, sTable$time))
+
+project.pca <- prcomp(t(counts_deseq_sva))
+summary(project.pca)
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+```
+
+```{r}
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="PCA Plot with SVA", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colors[time], pch=19)
+text(project.pca$x, labels=sampNum, cex= 0.7)
+```
+
+What does it look like for 12C vs 11R (SVA)? 
+```{r}
+res <- results(ddssva, alpha = 0.05, name = "time_30_vs_18")
+hist(res$pvalue, main = "timen_18Sibs_vs_30Sibs SVA PLOT", xlab = "p-values", col = "lavender")
+summary(res)
+batch_corrected_counts_SVA <- exp(counts_deseq_sva) - 1
+writeOutput(res, ddssva, "stage18_30_Sib_sva", c("18", "30"), dir, batch_corrected_counts_SVA)
+```
+
+
+
+# Writing csv with batch corrected counts
+```{r write csv sva}
+batch_corrected_counts_SVA <- ceiling(batch_corrected_counts_SVA)
+
+write.csv(batch_corrected_counts_SVA, file = "/Users/margaretsaha/llo_poster/stage18_30_Sibs_batchcond_counts.csv")
+```
+
+
+
+
+
+
