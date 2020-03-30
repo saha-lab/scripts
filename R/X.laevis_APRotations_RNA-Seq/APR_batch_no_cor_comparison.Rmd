@@ -1,0 +1,113 @@
+---
+title: "APR p-value comparison"
+author: "LeAnn Lo"
+date: "January 24, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The purpose of this is to compare the non corrected APR data and the batch effect removed data. The original DESeq output is sorted by p-adj values; for this comparison, the DESeq output must be sorted by p-value. This comparison will go over all of the pairwise comparisons done in APR 
+
+# Load libraries
+```{r}
+suppressMessages(library(RColorBrewer))
+suppressMessages(library(DESeq2))
+suppressMessages(library(affy))
+suppressMessages(library("vsn"))
+suppressMessages(library("ggplot2"))
+suppressMessages(library(ggrepel))
+suppressMessages(library(genefilter))
+```
+
+## Sib vs 11C
+
+Here we sort by p-value, a batch effect correction was made for the Sib vs 11C comparison. Let's load the resulting DESeq2 differential exression output and compare the rankings based on the p-values. These list have been sorted by raw p-values.
+```{r}
+# load data and only get first 7 columns, the rest are counts which we don't need
+
+## no correction
+
+Sib_11C_no_cor <- read.csv("/Volumes/CaChannel/RNA_SEQ/Analysis/APRotations/161221_Hisat2/Taejoon_JGlv9/Differential_Expression/Analysis_Workspace/18/uncollapsed/uncorrected_APR_Selfie/Sib_11C_stage18_DESeq2.csv")
+# reorder by p-value
+Sib_11C_no_cor <- Sib_11C_no_cor[order(Sib_11C_no_cor$pvalue),] 
+Sib_11C_no_cor <- Sib_11C_no_cor[,1:7]
+
+## correction
+Sib_11C_cor <- read.csv("/Volumes/CaChannel/RNA_SEQ/Analysis/APRotations/161221_Hisat2/Taejoon_JGlv9/Differential_Expression/Analysis_Workspace/18/Batch_corrected/uncollapsed/Sib_11C_stage18_DESeq2.csv")
+# reorder by p-value
+Sib_11C_cor <- Sib_11C_cor[order(Sib_11C_cor$pvalue),] 
+Sib_11C_cor <- Sib_11C_cor[,1:7]
+
+# get length of both, they should be the same
+length(Sib_11C_no_cor$Gene)
+length(Sib_11C_cor$Gene)
+```
+
+Check the headers to ensure that they are sorted by raw p-value, not p-adj like the original output of DESeq.
+```{r}
+head(Sib_11C_no_cor)
+head(Sib_11C_cor)
+```
+
+Pull out all of the genes with a p-value less than 0.05 for significantly differentially expressed genes. 
+```{r}
+# Significantly differentially expressed in non corrected
+Sib_11C_no_cor_sig <- subset(Sib_11C_no_cor, padj < 0.05)
+length(Sib_11C_no_cor_sig$Gene)
+
+# Significantly differentially expressed in corrected
+Sib_11C_cor_sig <- subset(Sib_11C_cor, padj < 0.05)
+length(Sib_11C_cor_sig$Gene)
+```
+
+We can compare the ranking of the first 238 genes from the non correction list to the correction list using a spearman's correlation test. Here a test statistic of 1 is a perfect match. First, set up the data to run the correlation.
+```{r}
+# get first 238 genes ranked by raw p-value in non correction list
+Sib_11C_no_cor_siggene <- as.character(Sib_11C_no_cor$Gene)[1:238]
+
+# get first 238 genes ranked by raw p-value in correction list
+Sib_11C_cor_siggene <- as.character(Sib_11C_cor$Gene)[1:238]
+
+# combine these vectors into a single matrix
+mat <- matrix(c(Sib_11C_no_cor_siggene, Sib_11C_cor_siggene), nrow = 238, ncol = 2)
+
+# take a look
+head(mat)
+```
+
+We can see how many genes are shared between the lists. Only 79 of these genes are shared between the two lists. 
+```{r}
+length(intersect(Sib_11C_no_cor_siggene, Sib_11C_cor_siggene))
+```
+
+We can test their correlation by running the Spearman correlation test. The correlation test value we receive is -0.08252794, this suggests that the lists are not closely correlated. This makes sense considering that there are only 79 genes that intersect.
+```{r}
+# convert matrix to numeric matrix so we can run a correlation
+mat <- matrix(as.numeric(as.factor(c(Sib_11C_no_cor_siggene, Sib_11C_cor_siggene))), nrow = 238, ncol = 2)
+head(mat)
+
+# compare these ranked lists, columns 1 and 2 using spearmans corelation
+cor(mat[,1], mat[,2], use="complete.obs", method = "spearman")
+```
+
+We can obtain the list of shared genes between the corrected and non corrected data. There are 79 shared genes between the two. 
+```{r}
+sharedgenes <- intersect(Sib_11C_no_cor_siggene, Sib_11C_cor_siggene)
+sharedgenes
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

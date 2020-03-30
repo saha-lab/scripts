@@ -1,0 +1,26 @@
+---
+title: "Metabolic Pathway Analysis"
+author: "LeAnn"
+date: "February 26, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## ClusterProfiler
+
+```{r libraries}
+library(magrittr)
+library(clusterProfiler)
+```
+
+```{r}
+SibSib1830 = read.csv("/Volumes/cachannel/RNA-SEQ/X.laevis_APRotations_RNA-Seq/Differential_expression/180122_DESeq2_Output/180505_DESeq2_Output/TimeComparison/SDE_only/Sib_Sib_st18_st30_DESeq2.csv_SDE_only.csv")
+geneList <- SibSib1830[,3]
+names(geneList) <- as.character(SibSib1830[,1])
+geneList <- sort(geneList, decreasing = TRUE)
+```
+
+

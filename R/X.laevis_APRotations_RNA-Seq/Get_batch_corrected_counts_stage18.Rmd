@@ -1,0 +1,211 @@
+---
+title: "Untitled"
+author: "Ronald Cutler"
+date: "May 25, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Getting batch corrected counts for stage 18
+
+# Loading data
+Here we use DESeq2 to load in counts 
+```{r}
+library(DESeq2)
+files <- list.files("/Volumes/cachannel-1/RNA_SEQ/Analysis/APRotations/Quantification/170802_HTSeq-count_Output_exon/temp", recursive = TRUE, full.name=TRUE)
+remove <- "/Volumes/cachannel-1/RNA_SEQ/Analysis/APRotations/Quantification/170802_HTSeq-count_Output_exon/temp/S18_12C/160728_S18_12C_5.bam_sorted.bam_htseq_out.txt"
+files <- setdiff(files, remove)
+files
+samp = c("S18_11C_1","S18_11C_2","S18_11C_3","S18_11C_4","S18_11C_5","S18_11R_1","S18_11R_2","S18_11R_3","S18_11R_4","S18_11R_5","S18_12C_1","S18_12C_2","S18_12C_3","S18_12C_5","S18_12R_1","S18_12R_2","S18_12R_3","S18_12R_4","S18_12R_5","S18_Sib_1","S18_Sib_2","S18_Sib_3","S18_Sib_4","S18_Sib_5","S18_11S_1","S18_11S_2","S18_11S_3","S18_11S_4","S18_11S_5","S18_12S_1","S18_12S_2","S18_12S_3","S18_12S_4","S18_12S_5","S18_Selfie_Sib_1", "S18_Selfie_Sib_2")
+
+cond = rep(c("18_11C", "18_11R"), each = 5)
+cond = c(cond, rep(c("18_12C"), each = 4))
+cond = c(cond, rep(c("18_12R", "18_Sib"), each = 5))
+cond = c(cond,rep(c("18_11S", "18_12S"), each = 5))
+cond = c(cond, rep(c("18_Sib"), each = 2))
+
+batch <- factor(c(rep(c("Rotation"), times = 24), rep(c("Selfie"), times = 12)), levels = c("Rotation", "Selfie"))
+sTable = data.frame(sampleName = samp, fileName = files, cond = cond, batch = batch)
+dds <- DESeqDataSetFromHTSeqCount(sampleTable = sTable, directory = "", design = ~ batch + cond)
+```
+
+#TPM Normalization
+```{r}
+library(devtools)
+# read in lengths
+len <- read.csv("/Volumes/cachannel-1/RNA_SEQ/Analysis/Reference/X_laevis/9.1_Reference_Files/Taejoon_JGIv9/XENLA_JGIv18pV3_cdna_final.XENLA_JGIv91_dna_final.gmap_gene_lengths.csv", header = T)
+row.names(len) <- len$gene
+len$gene <- NULL
+
+df <- as.data.frame(counts(dds))
+df$len <- len$length
+
+# Divide read counts by the length of each gene in kilobases
+RPK <- sweep(df[, -(37)], 1, (df[, 37]/1000), "/")
+
+# Sum RPK values and divide by 1 million = scaling factor
+scale_fac <- colSums(RPK) / 
+
+counts_to_tpm(counts, eff_len)
+```
+
+TPM Converson
+```{r}
+tpm <- function(counts, lengths) {
+  rate <- counts / (lengths/1000)
+  rate / sum(rate) * 1e6
+}
+
+TPM <- tpm(as.data.frame(counts(dds)), len$length)
+```
+
+# TPMFiltering
+Using counts per million values from EdgeR to filter counts and incorporating these back into a deseq object
+```{r}
+# length before
+before_len <- length(row.names(TPM))
+
+# filter out rows that don't sum to at least 10 reads
+#TPM <- TPM[rowSums(TPM) >= 10,]
+
+# filter out rows that contain at least 2 samples with 0 reads
+filter <- apply(TPM, 1, function(x) length(x[x==0])<=2)
+TPM <- TPM[filter,]
+
+# length after
+after_len <- length(row.names(TPM))
+
+# plot before and after length
+barplot(c(before_len, after_len), xlab = "Filtering", ylab = "Amount of genes", col = colors, ylim = c(0, 46000))
+```
+
+# TPM Batch Correction
+
+PCA before batch correction
+```{r}
+project.pca <- prcomp(t(log(TPM + 1)))
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+library(RColorBrewer)
+colors <- brewer.pal(3, "Set2")
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="Original PCA Plot", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colors[batch], pch=19)
+text(project.pca$x, labels=samp, cex= 0.7)
+```
+
+Batch correction 
+```{r}
+suppressMessages(library(limma))
+dds_log <- log(TPM + 1)
+counts_deseq_limma <- removeBatchEffect(dds_log, batch = batch) #, design = model.matrix(~cond, sTable$cond)
+```
+
+Plot batch corection
+```{r}
+project.pca <- prcomp(t(counts_deseq_limma))
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+library(RColorBrewer)
+colors <- brewer.pal(3, "Set2")
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="Original PCA Plot", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colors[batch], pch=19)
+text(project.pca$x, labels=samp, cex= 0.7)
+```
+
+# Output counts
+```{r}
+counts_deseq_limma = exp(counts_deseq_limma) - 1
+write.csv(counts_deseq_limma, file = "/Volumes/cachannel-1/SCRIPTS/R/APRotations_RNA-Seq/stage18_APR_vs_Selfie_comparisons/TPM_stage18_batchcor_counts.csv")
+```
+
+
+# Nomral counts 
+
+# Filtering
+Using counts per million values from EdgeR to filter counts and incorporating these back into a deseq object
+```{r}
+# length before
+before_len <- length(row.names(dds))
+
+# filter out rows that don't sum to at least 10 reads
+dds <- dds[rowSums(counts(dds)) >= 10,]
+
+# filter out rows that contain at least 2 samples with 0 reads
+filter <- apply(counts(dds), 1, function(x) length(x[x==0])<=2)
+dds <- dds[filter,]
+
+# length after
+after_len <- length(row.names(dds))
+
+# plot before and after length
+barplot(c(before_len, after_len), xlab = "Filtering", ylab = "Amount of genes", col = colors, ylim = c(0, 46000))
+```
+
+
+
+# Normalization
+Using DEseq2 for normalization and then extracting normalized counts
+```{r}
+# normalizing
+dds_filter_norm <- estimateSizeFactors(dds)
+
+# extracting normalized counts
+counts.filt.norm <- counts(dds_filter_norm, normalized = T)
+```
+
+Check normalization null filter - log scale. Normalization is a little low for ICD18_2 around log(10) counts.
+```{r}
+library(affy)
+## Checking the normalization
+boxplot(log2(counts(dds_filter_norm)+1),  col=colors[dds$cond], cex.axis=0.7, 
+        las=1, xlab="log2(counts)", horizontal=TRUE, main="Raw counts", names = samp)
+boxplot(log2(counts(dds_filter_norm, normalized=TRUE)+1),  col=colors[dds$cond], cex.axis=0.7, 
+        las=1, xlab="log2(normalized counts)", horizontal=TRUE, main="Normalized counts", names = samp) 
+plotDensity(log2(counts(dds_filter_norm)+1),  col=colors[dds$cond], 
+            xlab="log2(counts)", cex.lab=1.2, panel.first=grid(), main="Raw counts") 
+plotDensity(log2(counts(dds_filter_norm, normalized=TRUE)+1), col=colors[dds$cond], 
+            xlab="log2(normalized counts)", cex.lab=1.2, panel.first=grid(), main="Normalized counts") 
+legend("topright", legend = samp, col=colors[dds$cond], lty = c(1,2,3,4,5,6,7,8,9))
+```
+
+# Batch Correction
+
+PCA before batch correction
+```{r}
+project.pca <- prcomp(t(log(counts.filt.norm + 1)))
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+library(RColorBrewer)
+colors <- brewer.pal(3, "Set2")
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="Original PCA Plot", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colors[batch], pch=19)
+text(project.pca$x, labels=samp, cex= 0.7)
+```
+
+Batch correction 
+```{r}
+suppressMessages(library(limma))
+dds_log <- log(counts.filt.norm + 1)
+counts_deseq_limma <- removeBatchEffect(dds_log, batch = batch) #, design = model.matrix(~cond, sTable$cond)
+```
+
+Plot batch corection
+```{r}
+project.pca <- prcomp(t(counts_deseq_limma))
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+library(RColorBrewer)
+colors <- brewer.pal(3, "Set2")
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="Original PCA Plot", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colors[batch], pch=19)
+text(project.pca$x, labels=samp, cex= 0.7)
+```
+
+# Output counts
+```{r}
+counts_deseq_limma = exp(counts_deseq_limma) - 1
+write.csv(counts_deseq_limma, file = "/Volumes/cachannel-1/SCRIPTS/R/APRotations_RNA-Seq/stage18_APR_vs_Selfie_comparisons/stage18_batchcor_counts.csv")
+```

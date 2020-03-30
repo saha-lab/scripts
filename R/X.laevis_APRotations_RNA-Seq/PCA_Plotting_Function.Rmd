@@ -1,0 +1,65 @@
+---
+title: "PCA Plotting Function"
+author: "LeAnn Lo"
+date: "February 14, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## PCA Plotting Function with VSD and RLD Correction
+
+We use the PCA plotting in DESeq2 after transforming the data so the variance and mean relationship is linear.
+Transform data so that we can visualize relationships between samples as well as perform clustering. Setting blind = FALSE as the dispersion estimations have already been done by running the DESeq() function. 
+```{r}
+#vsd_filtered <- vst(ddssva, blind=FALSE)
+#rld_filtered <- rlog(ddssva, blind=FALSE)
+```
+
+Comapare the transformations. It appears the vsd transformation produces a more stable mena variance relationship.
+```{r}
+#library("vsn")
+#meanSdPlot(assay(vsd_filtered))
+#meanSdPlot(assay(rld_filtered))
+
+```
+
+
+PCA clustering function 
+```{r}
+# PCA plot of samples
+PCAPlotter <- function(ntop, vsd) {
+  # getting most variable genes 
+  Pvars <- rowVars(assay(vsd))
+  select <- order(Pvars, decreasing = TRUE)[seq_len(min(ntop, 
+          length(Pvars)))]
+  sampleNO <- sampNum
+  # calculate pca - zero centering variables and scaling where all variables have unit variance
+  PCA <- prcomp(t(assay(vsd)[select, ]), scale = T, center = TRUE)
+  percentVar <- round(100*PCA$sdev^2/sum(PCA$sdev^2),1)
+  dataGG = data.frame(PC1 = PCA$x[,1], PC2 = PCA$x[,2], 
+                      PC3 = PCA$x[,3], PC4 = PCA$x[,4], 
+                      condition = colData(vsd)$condition)
+  # plotting
+  print((qplot(PC1, PC2, data = dataGG, color =  condition, 
+  	       main = paste("PC1 vs PC2, Top", toString(ntop), "Variable Genes"), size = I(6))
+  	 + labs(x = paste0("PC1:", round(percentVar[1],4), "%"),
+  	        y = paste0("PC2:", round(percentVar[2],4), "%"))
+  	 + scale_colour_brewer(type="qual", palette=2) 
+  	 + geom_label_repel(aes(label = sampleNO), color = "black")))
+  PCA$rotation
+  PCA$sdev
+  return(PCA)
+}
+```
+
+```{r}
+PCA <- PCAPlotter(500, vsd_filtered)
+PCAl <- PCAPlotter(1000, vsd_filtered)
+PCA <- PCAPlotter(5000, vsd_filtered)
+PCA <- PCAPlotter(10000, vsd_filtered)
+PCA <- PCAPlotter(30000, vsd_filtered)
+```
+

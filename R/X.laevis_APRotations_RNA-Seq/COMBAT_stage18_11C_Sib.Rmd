@@ -1,0 +1,227 @@
+---
+title: "11C versus APR Sibs and Selfie Sibs"
+author: "LeAnn Lo"
+date: "February 28, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Loading Count Data
+We are using APR sib, Selfie sib, and APR 11C data from stage 18. 
+```{r countData}
+suppressMessages(library(RUVSeq))
+suppressMessages(library("ggplot2"))
+suppressMessages(library(ggrepel))
+suppressMessages(library(factoextra))
+suppressMessages(library(FactoMineR))
+suppressMessages(library(genefilter))
+
+files_sib_rot <- list.files("/Volumes/cachannel/RNA_SEQ/Analysis/APRotations/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_18/S18_Sib", recursive = TRUE, full.name=TRUE)
+files_sib_selfie <- list.files("/Volumes/cachannel/RNA_SEQ/Analysis/APRotations/Quantification/170802_HTSeq-count_Output_exon/Selfies_Batch/Stage_18/selfie_S18_Sib", recursive = TRUE, full.name=TRUE)
+files_apr_11C <- list.files("/Volumes/cachannel/RNA_SEQ/Analysis/APRotations/Quantification/170802_HTSeq-count_Output_exon/Rotations_Batch/Stage_18/S18_11C", recursive = TRUE, full.name=TRUE)
+
+files <- c(files_sib_rot, files_sib_selfie, files_apr_11C)
+
+# sample name rotations 
+sampNum_rot = c("S18_Sib_1","S18_Sib_2","S18_Sib_3","S18_Sib_4","S18_Sib_5")
+
+# sample name selfies
+sampNum_self = c("S18_SibSelfie_1", "S18_SibSelfie_2")
+
+# sample name APR 11C
+sampNum_11C = c("S18_11C_1","S18_11C_2","S18_11C_3","S18_11C_4","S18_11C_5")
+
+# combine sample names
+sampNum <- c(sampNum_rot, sampNum_self, sampNum_11C)
+
+# setting batch
+batch <- as.factor(rep(c("Sibs", "11C"), c(7, 5)))
+
+sTable = data.frame(sampleName = sampNum, fileName = files, batch = batch)
+```
+
+## DESeq #1
+
+```{r}
+suppressMessages(library(DESeq2))
+design <- ~ batch
+dds18 <- DESeqDataSetFromHTSeqCount(sampleTable = sTable, directory = "", design = design)
+dds18 <- dds18[rowMeans(counts(dds18)) >= 5,] 
+dds <- DESeq(dds18)
+```
+
+## Original Plot
+
+```{r original plot}
+suppressMessages(library(limma))
+
+project.pca <- prcomp(t(counts(dds, normalized = TRUE)))
+summary(project.pca)
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+```
+
+```{r}
+library(RColorBrewer)
+colors <- brewer.pal(3, "Set2")
+
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="Original PCA Plot", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colors[batch], pch=19)
+text(project.pca$x, labels=sampNum, cex= 0.7)
+```
+
+```{r getting avaiable comparisons from DESeq}
+head(dds)
+#get name of comparisons available to you
+resultsNames(dds)
+```
+
+Write output function
+```{r write output function}
+# write output
+writeOutput <- function(res, dds, name, cond, dir) {
+  resOrdered <- res[order(res$padj),]
+  resdata <- merge(as.data.frame(resOrdered), as.data.frame(counts(dds, normalized=TRUE)), by="row.names", sort=FALSE) #includes normalized counts in output csv
+  names(resdata)[1] <- "gene" # set header of first column
+  outfile <- paste(cond[1], cond[length(cond)], name, "DESeq2.csv", sep = "_")
+  outfile <- paste(dir, outfile, sep = "")
+  write.csv(as.data.frame(resdata), file = outfile, row.names = FALSE)
+}
+# setting dir
+dir <- "/Volumes/cachannel/SCRIPTS/R/APRotations_RNA-Seq/Batch_Correction/11C_Sibs/"
+```
+
+# DESeq comparison of batches
+There are about 1000 DE genes before any correction (SVA)
+```{r}
+# get results of batch vs selfie
+res <- results(dds, alpha = 0.05, name = "batch_Sibs_vs_11C")
+hist(res$pvalue, main = "All Sibs vs APR 11C", xlab = "p-values", col = "lavender")
+summary(res)
+#writeOutput(res, dds, "stage18_before_corr", c("Sibs", "APR_11C"), dir)
+```
+
+
+
+```{r SVA}
+# Loading all variables 
+library(sva)
+dat  <- counts(dds, normalized = TRUE)
+idx  <- rowMeans(dat) > 1
+dat  <- dat[idx, ]
+mod  <- model.matrix(~ batch, colData(dds))
+mod0 <- model.matrix(~ 1, colData(dds))
+svseq <- svaseq(dat, mod, mod0)
+```
+
+plotting 3 surrogate variables
+```{r}
+library(RColorBrewer)
+colors <- brewer.pal(3, "Set2")
+plot(svseq$sv, pch = 19, col=colors[batch])
+text(svseq$sv, labels=sampNum, cex= 0.7)
+```
+
+Adding surrogate variables to actual design and testing using DESeq, using 3 surrogate variables
+```{r}
+ddssva <- dds
+ddssva$SV1 <- svseq$sv[,1]
+ddssva$SV2 <- svseq$sv[,2]
+ddssva$SV3 <- svseq$sv[,3]
+design(ddssva) <- ~ SV1 + SV2 + SV3 + batch
+ddssva <- DESeq(ddssva)
+```
+
+Combat doesn't use the covariates from svseq, there are too many? Instead it uses the batch factor we gave earlier, 7 sibs, 5 11C.
+Combat requires log counts, normalized or not?
+The results are remarkably similar to sva output using limma removeBatchEffects function.
+```{r ComBat}
+# Loading all variables 
+library(sva)
+dataa <- log(counts(ddssva)+1)
+modcombat = model.matrix(~1, data=sTable)
+combatseq = ComBat(dat=dataa, batch=batch, mod = modcombat, par.prior = TRUE)
+```
+
+#Write combat output
+
+# Writing csv with batch corrected counts
+```{r}
+combatseq = exp(combatseq) - 1
+combatseq_counts <- ceiling(combatseq)
+#write.csv(combatseq_counts, file = "/Volumes/cachannel/SCRIPTS/R/APRotations_RNA-Seq/stage18_APR_batchcorr/11C_Sibs/stage18_Sibs_11C_normalized_Counts_combat.csv")
+```
+
+# Combat Plot
+Looks very similar to original plot, didn't remove any batches. This makes sense since it didn't use covariates from svseq, rather just the batch covariates. 
+```{r combat plot}
+project.pca <- prcomp(t((combatseq_counts)))
+summary(project.pca)
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+```
+
+```{r}
+library(RColorBrewer)
+colors <- brewer.pal(3, "Set2")
+
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="Combat Plot", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colors[batch], pch=19)
+text(project.pca$x, labels=sampNum, cex= 0.7)
+```
+
+
+What does it look like for Sibs vs 11C (SVA)? 
+There are now 2500 DE genes (it went increased?)
+```{r}
+res <- results(ddssva, alpha = 0.05, name = "batch_Sibs_vs_11C")
+hist(res$pvalue, main = "batch_Sibs_vs_11C SVA PLOT", xlab = "p-values", col = "lavender")
+summary(res)
+#writeOutput(res, ddssva, "stage18", c("Sibs", "11C"), dir)
+```
+
+## LIMMA
+
+```{r LIMMA}
+suppressMessages(library(limma))
+
+# get the sva covariates
+sv_covar <- svseq$sv
+
+counts_deseq_sva <- removeBatchEffect(log(counts(ddssva)+1), covariates = sv_covar)
+
+project.pca <- prcomp(t(counts_deseq_sva))
+summary(project.pca)
+project.pca.proportionvariances <- ((project.pca$sdev^2) / (sum(project.pca$sdev^2)))*100
+```
+
+```{r}
+#Plots scatter plot for PC 1 and 2
+plot(project.pca$x, type="n", main="PCA Plot with SVA", xlab=paste("PC1, ", round(project.pca.proportionvariances[1], 2), "%"), ylab=paste("PC2, ", round(project.pca.proportionvariances[2], 2), "%"))
+points(project.pca$x, col=colors[batch], pch=19)
+text(project.pca$x, labels=sampNum, cex= 0.7)
+```
+
+# Writing csv with batch corrected counts
+```{r write csv sva}
+batch_corrected_counts_SVA <- exp(counts_deseq_sva) - 1
+batch_corrected_counts_SVA <- ceiling(batch_corrected_counts_SVA)
+
+#write.csv(batch_corrected_counts_SVA, file = "/Volumes/cachannel/SCRIPTS/R/APRotations_RNA-Seq/Batch_Correction/11C_Sibs/stage18_Sibs_11C_normalized_Counts_sva.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
